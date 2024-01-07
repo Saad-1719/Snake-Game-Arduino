@@ -1,0 +1,285 @@
+#include <LedControl.h>
+#include <LiquidCrystal.h>
+
+const int DIN_PIN = 7;
+const int CS_PIN = 8;
+const int CLK_PIN = 6;
+
+LedControl lc = LedControl(DIN_PIN, CLK_PIN, CS_PIN, 1);
+
+const int joystickXPin = A0;
+const int joystickYPin = A1;
+const int buzzerPin = 8;
+const int gridSize = 8;
+int snakeX[gridSize * gridSize];
+int snakeY[gridSize * gridSize];
+int snakeSize = 1;
+int foodX, foodY;
+int direction = 1;
+bool gameOver = false;
+int score = 0;
+String difficulty = "1"; // Default difficulty
+int difficultylvl=1;
+
+LiquidCrystal lcd(12, 11, 5, 4, 3, 2);
+
+void setup() {
+  Serial.begin(9600);
+
+  lc.shutdown(0, false);
+  lc.setIntensity(0, 10);
+  lc.clearDisplay(0);
+
+  lcd.begin(16, 2);
+
+  selectDifficulty();
+}
+
+void loop() {
+  if (!gameOver) {
+    readJoystick();
+    moveSnake();
+    checkCollision();
+    checkFood();
+    displaySnake();
+    displayScoreOnLCD();
+    delay(200 - (difficultylvl - 1) * 40); // Adjust speed based on difficulty
+  } else {
+    displayGameOver();
+    delay(2000);
+    resetGame();
+  }
+}
+
+void selectDifficulty() {
+  lcd.clear();
+  // lcd.setCursor(0, 0);
+  // lcd.print("Select Difficulty level:");
+  String level="Select Difficulty level : ";
+  String difficultyText = " lft= Easy  rht= Medium";
+  difficultyText += "  up= Hard   down= Insane";
+
+  int scrollPosition = 0;
+  int difficultyScroll=0;
+
+  while (true) 
+  {
+    lcd.setCursor(0,0);
+    lcd.print(level.substring(scrollPosition, scrollPosition + 16));
+    delay(130);
+    difficultyScroll++;
+    lcd.setCursor(0, 1);
+    lcd.print(difficultyText.substring(scrollPosition, scrollPosition + 16));
+
+    delay(400);  // Adjust scrolling speed as needed
+    scrollPosition++;
+
+    if (scrollPosition >= difficultyText.length()) 
+    {
+      scrollPosition = 0;
+    }
+
+      int xValue = analogRead(joystickXPin);
+      int yValue=analogRead(joystickYPin);
+      if (xValue < 100) 
+      {
+        difficulty = "Easy";
+        difficultylvl=1;
+        break;
+      } else if (xValue > 900) 
+      {
+        difficulty = "Medium";
+        difficultylvl=2;
+        break;
+      } else if (yValue < 100) 
+      {
+        difficulty = "Hard";
+        difficultylvl=3;
+        break;
+      } else if(yValue>900) 
+      {
+        difficulty = "Insane4";
+        difficultylvl=4;
+        break;
+      }
+
+  }
+
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Difficulty: ");
+  lcd.print(difficulty);
+  delay(2000);
+}
+void readJoystick() {
+  int xValue = analogRead(joystickXPin);
+  int yValue = analogRead(joystickYPin);
+
+  if (xValue < 100) {
+    direction = 3;  // Left
+  } else if (xValue > 900) {
+    direction = 1;  // Right
+  }
+
+  if (yValue < 100) {
+    direction = 2;  // Up
+  } else if (yValue > 900) {
+    direction = 0;  // Down
+  }
+}
+
+void moveSnake() {
+  // Move the snake
+  for (int i = snakeSize - 1; i > 0; i--) {
+    snakeX[i] = snakeX[i - 1];
+    snakeY[i] = snakeY[i - 1];
+  }
+
+  // Move the head of the snake based on the direction
+  switch (direction) {
+    case 0:  // Up
+      snakeY[0] = (snakeY[0] - 1 + gridSize) % gridSize;  // Wrap around vertically
+      break;
+    case 1:  // Right
+      snakeX[0] = (snakeX[0] + 1) % gridSize;  // Wrap around horizontally
+      break;
+    case 2:  // Down
+      snakeY[0] = (snakeY[0] + 1) % gridSize;  // Wrap around vertically
+      break;
+    case 3:  // Left
+      snakeX[0] = (snakeX[0] - 1 + gridSize) % gridSize;  // Wrap around horizontally
+      break;
+  }
+}
+
+void checkCollision() {
+  // Check for collision with itself
+  for (int i = 1; i < snakeSize; i++) 
+  {
+    if (snakeX[0] == snakeX[i] && snakeY[0] == snakeY[i]) 
+    {
+      gameOver = true;
+    }
+  }
+}
+
+void checkFood() {
+  // Check for collision with food
+  if (snakeX[0] == foodX && snakeY[0] == foodY) {
+    spawnFood();
+    // Increase the size of the snake and update the score
+    snakeX[snakeSize] = snakeX[snakeSize - 1];
+    snakeY[snakeSize] = snakeY[snakeSize - 1];
+    snakeSize++;
+    score++;
+  }
+}
+
+void displaySnake() {
+  lc.clearDisplay(0);  // Clear the display
+
+  // Display the snake
+  for (int i = 0; i < snakeSize; i++) {
+    lc.setLed(0, snakeX[i], snakeY[i], true);
+  }
+
+  // Display the food
+  lc.setLed(0, foodX, foodY, true);
+}
+
+void spawnFood() {
+  // Generate random coordinates for the food
+  foodX = random(0, gridSize);
+  foodY = random(0, gridSize);
+}
+
+// void displayGameOver() 
+// {
+//    byte gameOverPattern[8] = 
+//    {
+//     B00011000,
+//     B00111100,
+//     B01100110,
+//     B11000011,
+//     B11000011,
+//     B01100110,
+//     B00111100,
+//     B00011000
+//   };
+
+//   // Display the "Game Over" pattern on the 8x8 matrix
+//   for (int row = 0; row < 8; row++) 
+//   {
+//       delay(500);
+//     lc.setRow(0, row, gameOverPattern[row]);
+//   }
+//   delay(1000);
+//   lc.clearDisplay(0);
+
+//   // Display "Game Over" on LCD
+//   lcd.clear();
+//   lcd.setCursor(0, 0);
+//   lcd.print("Game Over!");
+//   lcd.setCursor(0, 1);
+//   lcd.print("Score: ");
+//   lcd.print(score);
+// }
+
+void displayGameOver() 
+{
+   byte gameOverPattern[8] = 
+   {
+    B00000000,
+    B10111101,
+    B10000001,
+    B11111111,
+    B10000001,
+    B10100101,
+    B01000010,
+      B00111100
+
+  };
+
+  // Display the "Game Over" pattern on the 8x8 matrix
+  for (int row = 0; row < 8; row++) 
+  {
+      delay(500);
+    lc.setColumn(0, row, gameOverPattern[row]);
+  }
+  delay(1000);
+  lc.clearDisplay(0);
+
+  // Display "Game Over" on LCD
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Game Over!");
+  lcd.setCursor(0, 1);
+  lcd.print("Score: ");
+  lcd.print(score);
+  tone(buzzerPin,1568,200);
+  delay(200);
+  tone(buzzerPin,1319,200);
+  delay(200);
+  tone(buzzerPin,1175,200);
+}
+
+void resetGame() {
+  // Reset variables
+  gameOver = false;
+  direction = 1;
+  snakeSize = 1;
+  score = 0;
+  lc.clearDisplay(0);
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("New Game");
+  delay(900);
+  tone(buzzerPin, 1000, 200);  // Frequency: 1000Hz, Duration: 200ms
+  setup();
+}
+
+void displayScoreOnLCD() {
+  lcd.setCursor(7, 1);  // Set the cursor position on the LCD
+  lcd.print("Score: ");
+  lcd.print(score);
+}
